@@ -1,0 +1,113 @@
+---
+title: "cars"
+format: html
+editor: visual
+---
+
+```{r}
+mtcars_df <- read_csv(here("data", "mtcars.csv"))
+```
+
+```{r}
+dim(mtcars_df)      # rows, columns
+glimpse(mtcars_df)  # structure
+summary(mtcars_df)  # quick stats
+
+```
+
+```{r}
+ggplot(mtcars_df, aes(x = wt, y = mpg)) +
+  geom_point() +
+  labs(title = "MPG vs Weight",
+       x = "Weight (1000 lbs)", y = "Miles per Gallon (mpg)") +
+  theme_minimal()
+```
+
+```{r}
+ggplot(mtcars_df, aes(x = wt, y = mpg, color = factor(cyl))) +
+  geom_point() +
+  labs(title = "MPG vs Weight (colored by cylinders)",
+       x = "Weight (1000 lbs)", y = "Miles per Gallon (mpg)",
+       color = "Cylinders") +
+  theme_minimal()
+```
+
+```{r}
+ggplot(mtcars_df, aes(x = mpg)) +
+  geom_histogram(binwidth = 2, boundary = 0) +
+  labs(title = "Distribution of MPG",
+       x = "Miles per Gallon (mpg)", y = "Count") +
+  theme_minimal()
+
+```
+
+```{r}
+names(mtcars_df)
+```
+
+```{r}
+mtcars_clean <- mtcars_df %>%
+  tidyr::separate(
+    make_model,
+    into = c("make", "model"),
+    sep = " ",
+    extra = "merge",  # if the model has spaces, keep them together
+    fill  = "right"
+  )
+head(mtcars_clean[, c("make", "model", "mpg")])
+```
+
+```{r}
+ggplot(mtcars_clean, aes(x = make, y = mpg)) +
+  geom_boxplot(outlier.shape = NA) +        # boxplots without outlier dots
+  geom_jitter(width = 0.2, alpha = 0.7) +   # add points, spread a little
+  labs(title = "MPG by Make (Box + Jitter)",
+       x = "Make",
+       y = "Miles per Gallon (mpg)") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) # tilt labels
+
+```
+
+```{r}
+ggplot(mtcars_clean, aes(x = make, y = mpg, color = make)) +
+  geom_boxplot(outlier.shape = NA) +
+  geom_jitter(width = 0.2, alpha = 0.7) +
+  labs(title = "MPG by Make (Box + Jitter, Colored Outlines)",
+       x = "Make", y = "Miles per Gallon (mpg)") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+```
+
+```{r}
+mtcars_clean <- mtcars_df %>%
+  tidyr::separate(
+    make_model,
+    into = c("make", "model"),
+    sep = " ",
+    extra = "merge",
+    fill  = "right"
+  )
+mtcars_clean %>%
+  dplyr::select(make, model, mpg) %>%
+  arrange(make, model) %>%
+  print(n = Inf)
+mtcars_clean %>% count(make, sort = TRUE)
+mtcars_clean %>% filter(is.na(model) | model == "") %>%
+  select(make, model)
+mtcars_clean <- mtcars_clean %>%
+  mutate(model = tidyr::replace_na(model, "(none)"))
+
+```
+
+```{r}
+ggplot(mtcars_clean, aes(x = make, y = mpg, fill = make)) +
+  geom_boxplot(outlier.shape = NA, alpha = 0.6) +
+  geom_jitter(width = 0.2, alpha = 0.8, color = "black") +
+  labs(title = "MPG by Make (Box + Jitter, Colored)",
+       x = "Make", y = "Miles per Gallon (mpg)") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+```
