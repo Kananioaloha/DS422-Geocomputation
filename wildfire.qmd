@@ -260,21 +260,41 @@ animate(
 -   The code below will unzip it, move it into a fire_kml file directory that contains a kml file that is readable in R
 
 ```{r}
-unzip("data/FirespotArea_LANDSAT_USA_contiguous_and_Hawaii_7d.kmz", exdir = "data/fire_kml")
+library(sf)
+library(leaflet)
 
-wildfire_area_data <- st_read(
-  here("data/fire_kml/LANDSAT_USA_contiguous_and_Hawaii_7d_1757462691416.kml"),
-  layer = "30m Fire Detection Footprints (older than the last 24hrs) "
-)
+# 1) Point to your folder
+kml_dir <- "/Users/mckenzietimsing/Desktop/DS422/DS422-Geocomputation/data/fire_kml"
 
-wildfire_area_data <- wildfire_area_data |>
-  st_zm(drop = TRUE, what = "ZM") |>  # Remove Z/M dimension if present
-  st_make_valid() |>                  # Ensure geometry is valid
-  st_transform(4326)                  # Project to WGS84 for mapping
+if (!dir.exists(kml_dir)) stop("Folder not found: ", kml_dir)
 
+# 2) Find the KML file that was unzipped from the KMZ
+kml_files <- list.files(kml_dir, pattern = "\\.kml$", full.names = TRUE, ignore.case = TRUE)
+if (length(kml_files) == 0) stop("No .kml found in: ", kml_dir, 
+                                 "\nRe-unzip the KMZ into this folder.")
+
+kml_path <- kml_files[1]
+message("Using KML: ", kml_path)
+
+# 3) Discover layer names (KML “folders”)
+layer_names <- sf::st_layers(kml_path)$name
+print(layer_names)
+
+# Prefer polygon footprints if present
+footprint_layer <- layer_names[grepl("Footprint", layer_names, ignore.case = TRUE)][1]
+if (is.na(footprint_layer)) footprint_layer <- layer_names[1]
+
+# 4) Read, clean, project
+wildfire_area_data <- sf::st_read(kml_path, layer = footprint_layer, quiet = TRUE) |>
+  sf::st_zm(drop = TRUE, what = "ZM") |>
+  sf::st_make_valid() |>
+  sf::st_transform(4326)
+
+# 5) Quick map
 leaflet(wildfire_area_data) |>
   addProviderTiles("CartoDB.DarkMatter") |>
-  addPolygons(color = "red", weight = 0.8, opacity = 0.8)
+  addPolygons(color = "#FF3B30", weight = 0.8, opacity = 0.9)
+
 ```
 
 ------------------------------------------------------------------------
@@ -292,8 +312,118 @@ Download the LANDSAT 30m CSV for USA (Conterminous) and Hawaii at the bottom rig
 -   Map the data with any package you would like, just make sure there is at least a slight difference from the examples above, be as creative as possible while utilizing your critical thinking
 
 ```{r}
+library(readr)
+library(dplyr)
+library(sf)
+library(here)
+
+# Find the FIRMS CSV you saved in data/
+csv_path <- list.files(
+  here("data"),
+  pattern = "LANDSAT.*USA.*Hawaii.*7d.*\\.csv$",
+  full.names = TRUE,
+  ignore.case = TRUE
+)
+if (length(csv_path) == 0) stop("Couldn't find the LANDSAT 30m 7-day CSV in data/.")
+message("Using CSV: ", csv_path[1])
+
+# Read as a regular dataframe (readr is fast & handles types well)
+fires_df <- readr::read_csv(csv_path[1], show_col_types = FALSE)
+
+# Normalize column names to uppercase so we can rely on names
+fires_df <- fires_df |> rename_with(toupper)
+
+# Minimal QC: keep rows with valid coordinates
+fires_df <- fires_df |> filter(!is.na(LONGITUDE), !is.na(LATITUDE))
+
+# Make sure date is a real Date
+if ("ACQ_DATE" %in% names(fires_df)) {
+  fires_df <- fires_df |> mutate(ACQ_DATE = as.Date(ACQ_DATE))
+}
+
+# To avoid surprises, create a lowercase confidence column if present
+if ("CONFIDENCE" %in% names(fires_df)) {
+  fires_df <- fires_df |> mutate(CONF_LC = tolower(CONFIDENCE))
+} else {
+  fires_df <- fires_df |> mutate(CONF_LC = NA_character_)
+}
+
+# Convert to sf (keep LONG/LAT columns around for filtering/plotting)
+fires_sf <- fires_df |>
+  st_as_sf(coords = c("LONGITUDE", "LATITUDE"), crs = 4326, remove = FALSE)
+
+fires_sf
+
+library(leaflet)
+
+# Simple palette for confidence (falls back to gray if missing/unknown)
+pal <- colorFactor(
+  palette = c("low" = "#1a9850", "medium" = "#fee08b", "high" = "#d73027"),
+  domain  = c("low","medium","high"),
+  na.color = "#9e9e9e"
+)
+
+# Split into overlay groups for toggling
+fires_low    <- fires_sf |> filter(CONF_LC == "low")
+fires_medium <- fires_sf |> filter(CONF_LC == "medium")
+fires_high   <- fires_sf |> filter(CONF_LC == "high")
+fires_other  <- fires_sf |> filter(is.na(CONF_LC) | !(CONF_LC %in% c("low","medium","high")))
+
+leaflet() |>
+  addProviderTiles("Esri.WorldImagery", group = "Imagery") |>
+  addProviderTiles("CartoDB.Positron", group = "Light") |>
+  addCircleMarkers(data = fires_high,
+                   ~LONGITUDE, ~LATITUDE,
+                   radius = 4, stroke = FALSE, fillOpacity = 0.8,
+                   color = ~pal(CONF_LC),
+                   popup = ~paste0("<b>Date:</b> ", ACQ_DATE, 
+                                   if ("SATELLITE" %in% names(fires_sf)) paste0("<br><b>Sat:</b> ", SATELLITE) else "",
+                                   if ("CONFIDENCE" %in% names(fires_sf)) paste0("<br><b>Conf:</b> ", CONFIDENCE) else ""),
+                   clusterOptions = markerClusterOptions(),
+                   group = "High") |>
+  addCircleMarkers(data = fires_medium,
+                   ~LONGITUDE, ~LATITUDE,
+                   radius = 4, stroke = FALSE, fillOpacity = 0.8,
+                   color = ~pal(CONF_LC),
+                   popup = ~paste0("<b>Date:</b> ", ACQ_DATE,
+                                   if ("SATELLITE" %in% names(fires_sf)) paste0("<br><b>Sat:</b> ", SATELLITE) else "",
+                                   if ("CONFIDENCE" %in% names(fires_sf)) paste0("<br><b>Conf:</b> ", CONFIDENCE) else ""),
+                   clusterOptions = markerClusterOptions(),
+                   group = "Medium") |>
+  addCircleMarkers(data = fires_low,
+                   ~LONGITUDE, ~LATITUDE,
+                   radius = 4, stroke = FALSE, fillOpacity = 0.8,
+                   color = ~pal(CONF_LC),
+                   popup = ~paste0("<b>Date:</b> ", ACQ_DATE,
+                                   if ("SATELLITE" %in% names(fires_sf)) paste0("<br><b>Sat:</b> ", SATELLITE) else "",
+                                   if ("CONFIDENCE" %in% names(fires_sf)) paste0("<br><b>Conf:</b> ", CONFIDENCE) else ""),
+                   clusterOptions = markerClusterOptions(),
+                   group = "Low") |>
+  addCircleMarkers(data = fires_other,
+                   ~LONGITUDE, ~LATITUDE,
+                   radius = 4, stroke = FALSE, fillOpacity = 0.8,
+                   color = ~pal(CONF_LC),
+                   popup = ~paste0("<b>Date:</b> ", ACQ_DATE),
+                   clusterOptions = markerClusterOptions(),
+                   group = "Other/NA") |>
+  addLayersControl(
+    baseGroups = c("Imagery", "Light"),
+    overlayGroups = c("High", "Medium", "Low", "Other/NA"),
+    options = layersControlOptions(collapsed = FALSE)
+  ) |>
+  addLegend(
+    "bottomright", pal = pal, values = c("low","medium","high"),
+    title = "Confidence", opacity = 1
+  ) |>
+  fitBounds(lng1 = min(fires_sf$LONGITUDE, na.rm = TRUE),
+            lat1 = min(fires_sf$LATITUDE,  na.rm = TRUE),
+            lng2 = max(fires_sf$LONGITUDE, na.rm = TRUE),
+            lat2 = max(fires_sf$LATITUDE,  na.rm = TRUE))
+coord_sf(xlim = c(-170, -65), ylim = c(18, 72))
+
 
 ```
+
 
 ## ✨ Summary
 
