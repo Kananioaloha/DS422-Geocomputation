@@ -1,7 +1,7 @@
 ---
 title: "🌿 NDVI over Oʻahu with Sentinel-2 (R Tutorial)"
 subtitle: "From Copernicus Browser to NDVI map in minutes"
-author: "Your Name"
+author: "Kanani Tim Sing"
 format:
   html:
     theme: cosmo
@@ -14,6 +14,12 @@ execute:
   warning: false
 editor: visual
 ---
+
+```{r}
+library(here)
+library(terra)
+library(sf)
+```
 
 ## NDVI (Normalized Difference Vegetation Index)
 
@@ -28,6 +34,10 @@ Plants reflect more **near-infrared (NIR)** light and absorb **red** light. NDVI
 $$
 \mathrm{NDVI} \;=\; \frac{\text{NIR} - \text{Red}}{\text{NIR} + \text{Red}}
 $$
+
+```{=html}
+raw chunk, 3 times
+```
 
 ```{=html}
 <!-- Plain-text fallback (if math is disabled):
@@ -50,8 +60,8 @@ NDVI = (NIR - Red) / (NIR + Red)
 
 ```{r}
 # Paths to your .jp2 files
-red_path <- here("data/band_data/T04QFJ_20250906T210919_B04_10m.jp2")
-nir_path <- here("data/band_data/T04QFJ_20250906T210919_B08_10m.jp2")
+red_path <- here("Band_Data/T04QFJ_20250906T210919_B04_10m.jp2")
+nir_path <- here("Band_Data/T04QFJ_20250906T210919_B08_10m.jp2")
 ```
 
 ### These .jp2 files contain raster data
@@ -61,7 +71,7 @@ nir_path <- here("data/band_data/T04QFJ_20250906T210919_B08_10m.jp2")
 -   The `terra` package helps us read raster data into R
 
 ```{r}
-# Read bands directly
+# Read Bands directly
 red <- rast(red_path)
 nir <- rast(nir_path)
 ```
