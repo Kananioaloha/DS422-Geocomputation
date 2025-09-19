@@ -1,0 +1,238 @@
+---
+title: "🌿 NDVI over Oʻahu with Sentinel-2 (R Tutorial)"
+subtitle: "From Copernicus Browser to NDVI map in minutes"
+author: "Your Name"
+format:
+  html:
+    theme: cosmo
+    toc: true
+    toc-title: "On this page"
+    toc-depth: 3
+execute:
+  echo: true
+  message: false
+  warning: false
+editor: visual
+---
+
+```{r}
+library(here)
+library(terra)
+library(sf)
+library(mapview)
+library(tidyverse)
+```
+
+## NDVI (Normalized Difference Vegetation Index)
+
+NDVI is a simple, per-pixel indicator of “greenness” (photosynthetic activity).
+
+### What it measures
+
+Plants reflect more **near-infrared (NIR)** light and absorb **red** light. NDVI combines those two bands to highlight living vegetation.
+
+### Formula
+
+$$
+\mathrm{NDVI} \;=\; \frac{\text{NIR} - \text{Red}}{\text{NIR} + \text{Red}}
+$$
+
+```{=html}
+<!-- Plain-text fallback (if math is disabled):
+NDVI = (NIR - Red) / (NIR + Red)
+-->
+```
+
+### Typical value ranges
+
+-   **0.6–0.9**: dense, healthy vegetation\
+-   **0.2–0.5**: sparse/brown vegetation, shrubs/grass\
+-   **0–0.2**: bare soil / urban\
+-   **\< 0**: water, clouds, shadows, snow
+
+### What data do we need to calculate NDVI
+
+-   We can use the [Copernicus Open Access Hub](https://browser.dataspace.copernicus.eu/) to grab data form the satellite Sentinel 2
+
+-   We specifically need Band 8 data for near-infared and Band 4 data for red
+
+```{r}
+# Paths to your .jp2 files
+red_path <- here("Band_data/T04QFJ_20250906T210919_B04_10m.jp2")
+nir_path <- here("Band_data/T04QFJ_20250906T210919_B08_10m.jp2")
+```
+
+### These .jp2 files contain raster data
+
+-   Raster data is a way to represent geography as a **grid of cells (pixels)**. Each cell has a single value (e.g., elevation, temperature, NDVI) and the whole grid is georeferenced so every cell aligns to a real-world location
+
+-   The `terra` package helps us read raster data into R
+
+```{r}
+# Read bands directly
+red <- rast(red_path)
+nir <- rast(nir_path)
+```
+
+### Calculating NDVI
+
+$$
+\mathrm{NDVI} \;=\; \frac{\text{NIR} - \text{Red}}{\text{NIR} + \text{Red}}
+$$
+
+```{r}
+ndvi <- (nir - red) / (nir + red)
+```
+
+### Plotting NDVI
+
+```{r}
+plot(ndvi, main = "NDVI")
+```
+
+### Trimming the plot:
+
+```{r}
+# Create extent in lat/lon
+oahu_ext_latlon <- ext(-158.3, -157.6, 21.2, 21.7)
+
+# Create a temporary raster with this extent in WGS84
+temp_raster <- rast(oahu_ext_latlon, crs = "EPSG:4326")
+
+# Project to match your NDVI's CRS
+temp_raster_utm <- project(temp_raster, crs(ndvi))
+
+# Get the extent in UTM coordinates
+oahu_bbox <- ext(temp_raster_utm)
+
+# Crop your NDVI
+ndvi_oahu <- crop(ndvi, oahu_bbox)
+plot(ndvi_oahu, main = "NDVI - Oahu Area")
+```
+
+### Advanced Mapping
+
+```{r}
+# Reduce resolution significantly (factor of 8-10 should work)
+ndvi_small <- aggregate(ndvi_oahu, fact = 4, fun = mean)
+
+# Create custom breaks and colors
+breaks <- c(-1, 0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 1)
+colors <- c("#4A90E2",      # Ocean (blue)
+           "#CD853F",       # Bare soil/urban (tan)
+           "#DEB887",       # Very sparse (light tan)
+           "#F0E68C",       # Sparse (light yellow)
+           "#ADFF2F",       # Moderate (yellow-green)
+           "#32CD32",       # Good vegetation (lime green)
+           "#228B22",       # Dense vegetation (forest green)
+           "#006400")       # Very dense (dark green)
+
+mapview(ndvi_small,
+        at = breaks,
+        col.regions = colors,
+        layer.name = "NDVI",
+        alpha = 0.8)
+```
+
+## Challenge
+
+1.  Can you use an AI assistant to write R code below that calculates the percentages of each of these groups listed below in our image? Make a bar blot with `ggplot` showing the percentage for each group.
+
+-   **0.6–0.9**: dense, healthy vegetation
+-   **0.2–0.5**: sparse/brown vegetation, shrubs/grass
+-   **0–0.2**: bare soil / urban
+-   **\< 0**: water, clouds, shadows, snow
+
+```{r}
+
+# --- NDVI class percentages (based on ndvi_small) + bar plot ----
+library(terra)
+library(dplyr)
+library(tibble)
+library(ggplot2)
+library(scales)
+library(forcats)
+
+# Make sure ndvi_small exists (created via aggregate(ndvi_oahu, fact = 4, fun = mean))
+stopifnot(exists("ndvi_small"))
+
+# Extract NDVI values from the displayed map raster
+vals <- values(ndvi_small, na.rm = TRUE)
+vals <- vals[is.finite(vals)]  # drop Inf/NaN if any
+
+# Classify into the 4 requested groups
+df <- tibble(ndvi = vals) |>
+  mutate(class = case_when(
+    ndvi < 0 ~ "< 0: water/clouds/shadows/snow",
+    ndvi >= 0 & ndvi < 0.2 ~ "0–0.2: bare soil / urban",
+    ndvi >= 0.2 & ndvi <= 0.5 ~ "0.2–0.5: sparse/brown vegetation",
+    ndvi >= 0.6 & ndvi <= 0.9 ~ "0.6–0.9: dense, healthy vegetation",
+    TRUE ~ "Other"   # e.g., 0.5–0.6 or >0.9
+  ))
+
+# Count & compute percentages of ALL pixels
+counts <- df |>
+  count(class, name = "n") |>
+  mutate(pct_of_all = n / sum(n))
+
+# Keep only the four classes for the plot (ordered nicely)
+plot_data <- counts |>
+  filter(class != "Other") |>
+  mutate(class = fct_relevel(
+    class,
+    "< 0: water/clouds/shadows/snow",
+    "0–0.2: bare soil / urban",
+    "0.2–0.5: sparse/brown vegetation",
+    "0.6–0.9: dense, healthy vegetation"
+  ))
+
+# Bar plot of percentages (of all pixels in ndvi_small)
+ggplot(plot_data, aes(x = class, y = pct_of_all)) +
+  geom_col() +
+  geom_text(aes(label = percent(pct_of_all, accuracy = 0.1)),
+            vjust = -0.3, size = 3.5) +
+  scale_y_continuous(labels = percent_format(), expand = expansion(mult = c(0, .05))) +
+  labs(
+    title = "NDVI Classes in ndvi_small (% of pixels)",
+    x = NULL, y = "Percent of all pixels"
+  ) +
+  theme_minimal(base_size = 12) +
+  theme(axis.text.x = element_text(angle = 12, hjust = 1))
+
+# Optional: note how many pixels were outside the specified bins
+remainder <- counts |> filter(class == "Other") |> pull(pct_of_all)
+if (length(remainder) == 1 && remainder > 0) {
+  message(sprintf("Note: %.1f%% of pixels fall in 0.5–0.6 or >0.9 and are not included in the four bins.",
+                  remainder * 100))
+}
+
+```
+
+```{r}
+# Bright colors (incl. pink) for each NDVI class
+bright_cols <- c(
+  "< 0: water/clouds/shadows/snow" = "#00E5FF",   # bright cyan
+  "0–0.2: bare soil / urban"        = "#FFD400",   # bright yellow
+  "0.2–0.5: sparse/brown vegetation"= "#FF1493",   # hot pink
+  "0.6–0.9: dense, healthy vegetation" = "#39FF14" # neon green
+)
+
+ggplot(plot_data, aes(x = class, y = pct_of_all, fill = class)) +
+  geom_col() +
+  geom_text(aes(label = scales::percent(pct_of_all, accuracy = 0.1)),
+            vjust = -0.3, size = 3.8) +
+  scale_fill_manual(values = bright_cols) +
+  scale_y_continuous(labels = scales::percent_format(),
+                     expand = expansion(mult = c(0, .08))) +
+  labs(title = "NDVI Classes in ndvi_small (% of pixels)",
+       x = NULL, y = "Percent of pixels") +
+  theme_minimal(base_size = 13) +
+  theme(axis.text.x = element_text(angle = 12, hjust = 1),
+        legend.position = "none")
+
+```
+
+2.  Find a research paper that utilizes NDVI to do something cool, paste a link to the paper below with a 3 sentence summary of how the paper uses NDVI
+
+**Paper:** [A Near Four-Decade Time Series Shows the Hawaiian Islands Have Been Browning Since the 1980s](https://pmc.ncbi.nlm.nih.gov/articles/PMC10083158/?utm_source=chatgpt.com).\
+**Summary:** The authors built a 1982–2019 NDVI time series (AVHRR CDR, 0.05°) across all main Hawaiian Islands to track vegetation “greenness” over time. They found significant island-wide declines in NDVI—especially on Lānaʻi and Hawaiʻi—and showed the strongest monthly drops typically occur in March. By comparing NDVI with precipitation and the Palmer Drought Severity Index, they show leeward native ecosystems are especially drought-sensitive, giving land managers a long-term baseline for monitoring vegetation health. \
