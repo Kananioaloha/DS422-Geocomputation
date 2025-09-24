@@ -7,86 +7,90 @@ This worksheet will guide you through the process of designing and carrying out 
 ## 1. Framing the Question  
 
 **What environmental or social issue will you explore?**  
-*Write your thoughts here:*  
+Forest health and invasive grass spread around Kealakekua Mountain Reserve
 
 ---
 
 **Why is NDVI an appropriate tool for this question?**  
-*Write your thoughts here:*  
+NDVI shows “greenness,” so it’s good for spotting healthy canopy vs. dry/invaded areas.
+- Spatial, stalite, identify areas
 
 ---
 
 **Who might find your results meaningful or useful?**  
-*Write your thoughts here:*  
+Hiki Ola/KMR crews, DLNR, local schools, community partners, and fire/fuel managers.
 
 ---
 
 ## 2. Choosing a Place and Time  
 
 **What geographic area will you focus on?**  
-*Write your thoughts here:*  
+Kealakekua Mountain Reserve (ma uka of Kona) and a small buffer around it.
 
 ---
 
 **What time frame makes sense for your question?**  
 (e.g., single date, multiple years, seasonal patterns)  
-*Write your thoughts here:*  
+Seasonal check (wet vs. dry) across multiple years, e.g., 2019–2025.
 
 ---
 
 **How will you define the scope of your analysis?**  
-*Write your thoughts here:*  
+Compare fenced/restoration plots vs. nearby unfenced areas at the same elevation bands.
+
 
 ---
 
 ## 3. Finding Data  
 
 **Where could you get satellite imagery or NDVI data?**  
-*Write your thoughts here:*  
+Copernicus Browser Sentinel-2 L1C, two images a year from 2019-2025 wet and dry seasons
 
 ---
 
 **What resolution and frequency are appropriate?**  
-*Write your thoughts here:*  
+low cloud coverage
 
 ---
 
 **Will you download data manually or use an R package? Which one?**  
-*Write your thoughts here:*  
+download manually off of capernicus browser
 
 ---
 
 ## 4. Bringing Data into R  
 
 **What R packages can help you work with spatial data?**  
-*Write your thoughts here:*  
+terra (rasters), sf (vectors), dplyr (wrangle), ggplot2 (maps/plots), lubridate (dates), ggspatial
 
 ---
 
 **How will you handle projections, boundaries, or missing data?**  
-*Write your thoughts here:*  
+na.rm = TRUE
+- load data for mapping, reproject, treat clouds as N/A
 
 ---
 
 **What file formats will you be working with?**  
-*Write your thoughts here:*  
+Inputs: Sentinel-2 JP2 bands inside .SAFE folders; AOI as Shapefile or GeoJSON.
+Outputs: NDVI GeoTIFF (.tif), summary CSV, and map figures PNG.
 
 ---
 
 ## 5. Calculating NDVI  
 
 **What is the NDVI formula?**  
-*Write your formula here:*  
+NDVI = (NIR − Red) / (NIR + Red)
 
 ---
 
 **Which spectral bands are needed?**  
-*Write your thoughts here:*  
+Sentinel-2: B8 (NIR, 10 m) and B4 (Red, 10 m).
 
 ---
 
 **How will you apply this formula in R?**  
-*Write your thoughts here:*  
+Load B4 and B8 with terra, crop to my AOI, compute (nir - red)/(nir + red), mask clouds/shadows using the Sentinel-2 SCL layer, and save NDVI as a GeoTIFF.
 
 ---
 
@@ -94,34 +98,34 @@ This worksheet will guide you through the process of designing and carrying out 
 
 **How will you summarize NDVI values?**  
 (maps, plots, tables)  
-*Write your thoughts here:*  
+Make a simple NDVI map (wet vs. dry), a histogram of NDVI, a boxplot comparing areas (e.g., inside vs. outside fence), and a small table with mean/median NDVI by season × year.
 
 ---
 
 **Will you compare locations, beofre and after events, look at seasonal patterns, or study long-term trends?**  
-*Write your thoughts here:*  
+(1) Locations: inside fenced/restoration plots vs. nearby unfenced areas; (2) Before/After: weed control or planting events; (3) Seasonal: wet vs. dry season each year; (4) Long-term: trends from 2019–2025.
 
 ---
 
 **How will you make your visualizations clear and interpretable?**  
-*Write your thoughts here:*  
+Use the same NDVI color scale and breaks across maps; add titles with date/season, a legend, and AOI/plot outlines. Mask clouds/shadows so they show as NA/blank. Keep large labels, simple fonts, and include a scale bar & north arrow. For plots, label axes, show sample sizes, and use boxplots/time-series with clear captions.
 
 ---
 
 ## 7. Interpreting Results  
 
 **What patterns or relationships do you expect to see?**  
-*Write your thoughts here:*  
+Higher NDVI inside fences vs. outside; wet season > dry season; gradual NDVI increase over years where restoration is working; possible dips after drought/wildfire; lower NDVI at hotter, lower-elevation grass areas.
 
 ---
 
 **How do they relate to your research question?**  
-*Write your thoughts here:*  
+They show whether restoration is improving canopy/ground cover, where invasive grasses persist, and how seasonal affects fuel buildup—guiding where to focus planting, weeding, and monitoring.
 
 ---
 
 **What uncertainties or data limitations should you acknowledge?**  
-*Write your thoughts here:*  
+Clouds/shadows and terrain effects; mixed pixels at 10 m; NDVI saturation in dense canopy; NDVI can’t tell native vs. invasive by itself; date mismatches between “before” and “after”; sensor/atmospheric differences across scenes.
 
 ---
 
@@ -129,9 +133,8 @@ This worksheet will guide you through the process of designing and carrying out 
 
 
 **Could your results inform decisions, policies, or further research?**  
-*Write your thoughts here:*  
-
+Yes—prioritize weeding/planting sites, schedule work before dry season, support funding reports, update fuel-risk maps, and share with local schools/community partners.
 ---
 
 **What new questions emerge from your findings?**  
-*Write your thoughts here:*  
+Which species or structure drive NDVI gains? How do NDVI changes track rainfall/elevation? Can adding NDWI/NBR improve drought or burn-scar detection? What ground-truth data (plots, photo-points) is needed to verify trends?
